@@ -43,15 +43,6 @@ uart:
   rx_pin: GPIO16
   baud_rate: 115200
 
-# External components
-external_components:
-  - source:
-      type: git   #来源​
-      url: https://github.com/cdjq/esphome.git   #必须是根目录​
-      ref: dev   #分支​
-    components:
-      dfrobot_c4002  #组件
-
 # C4002 组件配置
 dfrobot_c4002:
   id: my_c4002
