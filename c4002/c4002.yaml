@@ -54,11 +54,11 @@ display:
 # UART配置
 uart:
   id: uart_bus
-  tx_pin: GPIO21
-  rx_pin: GPIO20
+  tx_pin: GPIO0
+  rx_pin: GPIO1
   baud_rate: 115200
 
-# C4002 组件配置
+# DFRobot C4002 毫米波雷达组件配置
 dfrobot_c4002:
   id: my_c4002
 
@@ -73,39 +73,41 @@ sensor:
       name: "Presence Distance"
       id: existing_distance_sensor  # 存在距离
     movement_speed:
-      name: "Motion Speed"
+      name: "Motion Speed"          # 目标移动速度
       id: movement_speed_sensor
     movement_direction:
       name: "Motion Direction"
       id: movement_direction_sensor  # 运动方向
       internal: true
     target_status:
-      name: "Target Status"
+      name: "Target Status"          # 当前目标状态（内部使用，不在前端显示）
       id: target_status_sensor
       internal: true
 
 text_sensor:
+  # 运动方向文本传感器（将数值转为中文描述）
   - platform: template
     name: "Movement Direction"
     id: movement_direction_text
     icon: "mdi:directions"
     lambda: |-
       int d = id(movement_direction_sensor).state;
-      if (d == 0) return {"Approaching"};
-      else if (d == 1) return {"No Direction"};
-      else if (d == 2) return {"Away"};
+      if (d == 0) return {"靠近"};
+      else if (d == 1) return {"无方向"};
+      else if (d == 2) return {"远离"};
       else return {"未知"};
     update_interval: 1s
 
+  # 目标状态文本传感器（将数值转为中文描述）
   - platform: template
     name: "Target Status"
     id: target_status_text
     icon: "mdi:human-greeting"
     lambda: |-
       int d = id(target_status_sensor).state;
-      if (d == 0) return {"No Target"};
-      else if (d == 1) return {"Static Presence"};
-      else if (d == 2) return {"Motion"};
+      if (d == 0) return {"无目标"};
+      else if (d == 1) return {"静止存在"};
+      else if (d == 2) return {"运动中"};
       else return {"未知"};
     update_interval: 0.5s
 
@@ -119,16 +121,17 @@ text_sensor:
 switch:
   - platform: dfrobot_c4002
     switch_out_led:
-      name: "Out LED Switch"
+      name: "Out LED Switch"   # 控制 OUT 状态指示灯
     switch_run_led:
-      name: "Run LED Switch"
+      name: "Run LED Switch"   # 控制 RUN 运行指示灯
     switch_factory_reset:
-      name: "Factory Reset"
+      name: "Factory Reset"    # 触发雷达恢复出厂设置
     switch_environmental_calibration:
-      name: "Sensor Calibration"
+      name: "Sensor Calibration"  # 触发雷达环境自适应校准
 
 # Select 配置部分
 select:
+  # 雷达输出工作模式选择
   - platform: dfrobot_c4002
     c4002_id: my_c4002
     operating_mode:
@@ -142,10 +145,10 @@ select:
 number:
   - platform: dfrobot_c4002
     max_range:
-      name: "Max detection distance"
+      name: "Max detection distance"   # 雷达最大探测范围设置
     min_range:
-      name: "Min detection distance"
+      name: "Min detection distance"   # 雷达最小探测范围设置（盲区）
     light_threshold:
-      name: "Light Threshold"
+      name: "Light Threshold"          # 光敏触发阈值（需硬件支持光敏）
     target_disappeard_delay_time:
-      name: "Target Disappear Delay Time"
+      name: "Target Disappear Delay Time"  # 目标离开后保持"存在"状态的延迟时长
