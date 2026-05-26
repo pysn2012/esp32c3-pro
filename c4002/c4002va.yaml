@@ -117,9 +117,9 @@ switch:
     switch_run_led:
       name: "Run LED Switch"   # 控制 RUN 运行指示灯
     switch_factory_reset:
-      name: "恢复出厂设置"    # 触发雷达恢复出厂设置
+      name: "Factory Reset"    # 触发雷达恢复出厂设置
     switch_environmental_calibration:
-      name: "传感器自校准"  # 触发雷达环境自适应校准
+      name: "Sensor Calibration"  # 触发雷达环境自适应校准
 
 # Select 配置部分
 select:
