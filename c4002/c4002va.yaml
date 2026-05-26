@@ -228,9 +228,9 @@ media_player:
       num_channels: 1
     files:
       - id: come_sound
-        file: "/audio/come.wav"
+        file: "../audio/come.wav"
       - id: leave_sound
-        file: "/audio/leave.wav"
+        file: "../audio/leave.wav"
         
 # 自定义脚本
 script:
