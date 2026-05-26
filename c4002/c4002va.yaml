@@ -82,7 +82,10 @@ text_sensor:
       else if (d == 1) return {"无方向"};
       else if (d == 2) return {"靠近"};
       else return {"未知"};
-    update_interval: 1s
+    update_interval: 0.5s
+    on_value:
+      then:
+        - script.execute: play_motion_sound
 
   # 目标状态文本传感器（将数值转为中文描述）
   - platform: template
@@ -96,6 +99,9 @@ text_sensor:
       else if (d == 2) return {"运动中"};
       else return {"未知"};
     update_interval: 0.5s
+    on_value:
+      then:
+        - script.execute: play_motion_sound
 
   - platform: dfrobot_c4002
     c4002_id: my_c4002
@@ -111,9 +117,9 @@ switch:
     switch_run_led:
       name: "Run LED Switch"   # 控制 RUN 运行指示灯
     switch_factory_reset:
-      name: "Factory Reset"    # 触发雷达恢复出厂设置
+      name: "恢复出厂设置"    # 触发雷达恢复出厂设置
     switch_environmental_calibration:
-      name: "Sensor Calibration"  # 触发雷达环境自适应校准
+      name: "传感器自校准"  # 触发雷达环境自适应校准
 
 # Select 配置部分
 select:
@@ -176,3 +182,86 @@ display:
       } else {
         it.printf(10, 42, id(cn_font), "距离：--");
       }
+
+# I2S 音频总线
+i2s_audio:
+  - id: i2s_bus
+    i2s_bclk_pin: GPIO3     # ← SCK
+    i2s_lrclk_pin: GPIO4    # ← WS
+
+
+# INMP441
+microphone:
+  - platform: i2s_audio
+    id: box_mic
+    i2s_audio_id: i2s_bus
+    adc_type: external
+    i2s_din_pin: GPIO18     # SD
+    pdm: false
+    sample_rate: 16000
+    bits_per_sample: 32bit
+    channel: left           # 声道 (L/R接GND=left, 接VCC=right)
+
+# MAX 98357A
+speaker:
+  - platform: i2s_audio
+    id: box_speaker
+    i2s_audio_id: i2s_bus
+    i2s_dout_pin: GPIO19
+    dac_type: external
+    sample_rate: 16000
+    bits_per_sample: 16bit
+    channel: right           # MAX 98357A默认是右声道
+    buffer_duration: 100ms
+
+# 媒体播放器，用于播放TTS和提示音
+media_player:
+  - platform: speaker
+    name: "ESP32C3 Speaker"
+    id: speaker_media_player
+    volume_min: 0.5
+    volume_max: 0.8
+    announcement_pipeline:
+      speaker: box_speaker
+      format: WAV
+      sample_rate: 16000
+      num_channels: 1
+    files:
+      - id: come_sound
+        file: "/audio/come.wav"
+      - id: leave_sound
+        file: "/audio/leave.wav"
+        
+# 自定义脚本
+script:
+  - id: play_motion_sound
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: |-
+              // 只有"运动中"才需要播报
+              return id(target_status_text).state == "运动中";
+          then:
+            - if:
+                condition:
+                  lambda: |-
+                    // 靠近（你修正后 d==2 是靠近）
+                    return id(movement_direction_sensor).state == 2;
+                then:
+                  - media_player.play_media:
+                      id: speaker_media_player
+                      media_file: come_sound
+                      announcement: true
+                  - delay: 5s
+            - if:
+                condition:
+                  lambda: |-
+                    // 远离（你修正后 d==0 是远离）
+                    return id(movement_direction_sensor).state == 0;
+                then:
+                  - media_player.play_media:
+                      id: speaker_media_player
+                      media_file: leave_sound
+                      announcement: true
+                  - delay: 5s
