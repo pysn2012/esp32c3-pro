@@ -90,7 +90,7 @@ text_sensor:
     id: target_status_text
     icon: "mdi:human-greeting"
     lambda: |-
-      int d = id(target_status_sensor).state;
+      int d = id(confirmed_status);
       if (d == 0) return {"无目标"};
       else if (d == 1) return {"静止存在"};
       else if (d == 2) return {"运动中"};
@@ -106,6 +106,7 @@ text_sensor:
 # 开关配置部分
 switch:
   - platform: dfrobot_c4002
+    c4002_id: my_c4002
     switch_out_led:
       name: "Out LED Switch"   # 控制 OUT 状态指示灯
     switch_run_led:
@@ -130,6 +131,7 @@ select:
 # 最小和最大检测范围配置
 number:
   - platform: dfrobot_c4002
+    c4002_id: my_c4002
     max_range:
       name: "Max detection distance"   # 雷达最大探测范围设置
     min_range:
@@ -138,6 +140,23 @@ number:
       name: "Light Threshold"          # 光敏触发阈值（需硬件支持光敏）
     target_disappeard_delay_time:
       name: "Target Disappear Delay Time"  # 目标离开后保持"存在"状态的延迟时长
+
+# 全局变量：防抖状态机
+globals:
+  - id: confirmed_status
+    type: int
+    restore_value: no
+    initial_value: '0'        # 0=无目标, 1=静止, 2=运动
+
+  - id: pending_status
+    type: int
+    restore_value: no
+    initial_value: '0'        # 待确认的新状态
+
+  - id: status_change_timer
+    type: int
+    restore_value: no
+    initial_value: '0'        # 状态变化时刻的 millis() 时间戳
 
 # 字体配置
 font:
@@ -150,6 +169,13 @@ font:
     size: 12                        # 字号：12
     glyphs: ${allowed_characters}   # 只加载指定字符
     ignore_missing_glyphs: true     # 忽略字体中缺失的字符，不报错
+
+# 本地音频文件
+media_file:
+  - file: sounds/come.wav
+    id: come_sound
+  - file: sounds/leave.wav
+    id: leave_sound
 
 # I2C 总线
 i2c:
@@ -221,31 +247,90 @@ media_player:
       sample_rate: 16000
       num_channels: 1
         
-# 自定义脚本
+# 自定义脚本：防抖处理 + 播报
 script:
-  - id: play_motion_sound
+  # --- 核心防抖脚本（每 100ms 由 interval 调用）---
+  - id: debounce_handler
     mode: single
     then:
-      - if:
-          condition:
-            lambda: |-
-              return id(target_status_text).state == "运动中";
-          then:
-            - if:
-                condition:
-                  lambda: |-
-                    return id(movement_direction_sensor).state == 2;
-                then:
-                  - media_player.speaker.play_on_device_media_file:
-                      media_file: come_sound
-                      announcement: true
-                  - delay: 5s
-            - if:
-                condition:
-                  lambda: |-
-                    return id(movement_direction_sensor).state == 0;
-                then:
-                  - media_player.speaker.play_on_device_media_file:
-                      media_file: leave_sound
-                      announcement: true
-                  - delay: 5s
+      - lambda: |-
+          int raw_status = id(target_status_sensor).state;
+
+          // 忽略无效值（初始化时可能为 NaN）
+          if (isnan(raw_status)) {
+            return;
+          }
+
+          // 如果原始状态与已确认状态一致，重置待处理状态
+          if (raw_status == id(confirmed_status)) {
+            id(pending_status) = raw_status;
+            id(status_change_timer) = 0;
+            return;
+          }
+
+          unsigned long now = millis();
+
+          // 检测到新状态，开始计时
+          if (raw_status != id(pending_status)) {
+            id(pending_status) = raw_status;
+            id(status_change_timer) = now;
+            ESP_LOGD("debounce", "状态变化检测: %d -> %d, 开始计时",
+                     id(confirmed_status), raw_status);
+          }
+          // 待确认状态持续中，检查是否达到防抖时间
+          else {
+            unsigned long elapsed = now - (unsigned long)id(status_change_timer);
+            unsigned long debounce_time;
+
+            // 人来防抖 1.5s（避免快速误触发）
+            // 人走防抖 3.0s（避免短暂消失误报，如静坐微动）
+            if (raw_status == 0) {
+              debounce_time = 3000;
+            } else {
+              debounce_time = 1500;
+            }
+
+            if (elapsed >= debounce_time) {
+              int old_status = id(confirmed_status);
+              id(confirmed_status) = raw_status;
+              id(status_change_timer) = 0;
+
+              ESP_LOGI("debounce", "✅ 状态确认: %d -> %d (耗时 %lu ms)",
+                       old_status, raw_status, elapsed);
+
+              // 触发对应播报
+              if (raw_status != 0) {
+                id(play_arrived_sound).execute();
+              } else {
+                id(play_left_sound).execute();
+              }
+            }
+          }
+
+  # --- 播报：有人来了 ---
+  - id: play_arrived_sound
+    mode: single
+    then:
+      - logger.log:
+          format: "🔔 播报：有人来了"
+          tag: "c4002"
+      - media_player.speaker.play_on_device_media_file:
+          media_file: come_sound
+          announcement: true
+
+  # --- 播报：有人离开了 ---
+  - id: play_left_sound
+    mode: single
+    then:
+      - logger.log:
+          format: "🔔 播报：有人离开了"
+          tag: "c4002"
+      - media_player.speaker.play_on_device_media_file:
+          media_file: leave_sound
+          announcement: true
+
+# 定时器：每 100ms 执行一次防抖检查
+interval:
+  - interval: 100ms
+    then:
+      - script.execute: debounce_handler

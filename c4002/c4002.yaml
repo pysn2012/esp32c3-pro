@@ -106,6 +106,7 @@ text_sensor:
 # 开关配置部分
 switch:
   - platform: dfrobot_c4002
+    c4002_id: my_c4002
     switch_out_led:
       name: "Out LED Switch"   # 控制 OUT 状态指示灯
     switch_run_led:
@@ -130,6 +131,7 @@ select:
 # 最小和最大检测范围配置
 number:
   - platform: dfrobot_c4002
+    c4002_id: my_c4002
     max_range:
       name: "Max detection distance"   # 雷达最大探测范围设置
     min_range:
