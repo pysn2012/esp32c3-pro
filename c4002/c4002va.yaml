@@ -170,13 +170,6 @@ font:
     glyphs: ${allowed_characters}   # 只加载指定字符
     ignore_missing_glyphs: true     # 忽略字体中缺失的字符，不报错
 
-# 本地音频文件
-media_file:
-  - file: sounds/come.wav
-    id: come_sound
-  - file: sounds/leave.wav
-    id: leave_sound
-
 # I2C 总线
 i2c:
   - id: i2c_bus
@@ -246,6 +239,11 @@ media_player:
       format: WAV
       sample_rate: 16000
       num_channels: 1
+    files:
+      - id: come_sound
+        file: "../sounds/come.wav"
+      - id: leave_sound
+        file: "../sounds/leave.wav"
         
 # 自定义脚本：防抖处理 + 播报
 script:
