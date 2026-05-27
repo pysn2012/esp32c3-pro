@@ -53,16 +53,16 @@ sensor:
   - platform: dfrobot_c4002
     c4002_id: my_c4002
     movement_distance:
-      name: "Motion Distance"
+      name: "1.运动距离"
       id: movement_distance_sensor  # 运动距离
     existing_distance:
-      name: "Presence Distance"
+      name: "2.存在距离"
       id: existing_distance_sensor  # 存在距离
     movement_speed:
-      name: "Motion Speed"          # 目标移动速度
+      name: "3.移动速度"          # 目标移动速度
       id: movement_speed_sensor
     movement_direction:
-      name: "Motion Direction"
+      name: "4.运动方向"
       id: movement_direction_sensor  # 运动方向
       internal: true
     target_status:

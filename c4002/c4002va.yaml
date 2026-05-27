@@ -83,9 +83,6 @@ text_sensor:
       else if (d == 2) return {"靠近"};
       else return {"未知"};
     update_interval: 0.5s
-    on_value:
-      then:
-        - script.execute: play_motion_sound
 
   # 目标状态文本传感器（将数值转为中文描述）
   - platform: template
@@ -99,9 +96,6 @@ text_sensor:
       else if (d == 2) return {"运动中"};
       else return {"未知"};
     update_interval: 0.5s
-    on_value:
-      then:
-        - script.execute: play_motion_sound
 
   - platform: dfrobot_c4002
     c4002_id: my_c4002
@@ -226,11 +220,6 @@ media_player:
       format: WAV
       sample_rate: 16000
       num_channels: 1
-    files:
-      - id: come_sound
-        file: "../audio/come.wav"
-      - id: leave_sound
-        file: "../audio/leave.wav"
         
 # 自定义脚本
 script:
