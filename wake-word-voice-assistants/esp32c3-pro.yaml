@@ -44,19 +44,15 @@ esp32:
   framework:
     type: esp-idf
     sdkconfig_options:
-      # === 高安全性优化（推荐必加）===
-      CONFIG_COMPILER_OPTIMIZATION_ASSERTION_LEVEL: 0
-      CONFIG_LOG_DEFAULT_LEVEL: 1
+      CONFIG_COMPILER_OPTIMIZATION_ASSERTION_LEVEL: "0"
+      CONFIG_LOG_DEFAULT_LEVEL: "1"
+      CONFIG_FREERTOS_UNICORE: "y"
       
-      # === 中等安全性优化（可选）===
-      # C3 单核不需要 SMP 相关代码
-      CONFIG_FREERTOS_UNICORE: y
-      
-  advanced:
-    compiler_optimization: SIZE
-    enable_full_printf: false
-    disable_debug_stubs: true
-    disable_ocd_aware: true
+    advanced:
+      compiler_optimization: SIZE
+      enable_full_printf: false
+      disable_debug_stubs: true
+      disable_ocd_aware: true
 
 api:
   on_client_connected:
