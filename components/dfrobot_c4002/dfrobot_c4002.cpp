@@ -90,6 +90,10 @@ void C4002Component::get_data() {
 void C4002Component::update_config_param() {
   ESP_LOGD(TAG, "update config param test!");
 
+  // 初始化 NVS 持久化对象（用于 max_range / min_range 断电保持）
+  pref_min_range_ = global_preferences->make_preference<float>(233825507UL, false);
+  pref_max_range_ = global_preferences->make_preference<float>(233825508UL, false);
+
   //** driver init **/
   while (!begin()) {
     delayMicroseconds(1000 * 300);
@@ -99,6 +103,19 @@ void C4002Component::update_config_param() {
   ESP_LOGD(TAG, "C4002 begin success");
 
   setup_number();
+
+  //** 从 NVS 加载上次保存的探测范围（重启后恢复用户设置）**//
+  {
+    float saved_min, saved_max;
+    if (pref_min_range_.load(&saved_min)) {
+      min_detect_range_ = saved_min;
+      ESP_LOGD(TAG, "Loaded saved min_range from NVS: %.2f", saved_min);
+    }
+    if (pref_max_range_.load(&saved_max)) {
+      max_detect_range_ = saved_max;
+      ESP_LOGD(TAG, "Loaded saved max_range from NVS: %.2f", saved_max);
+    }
+  }
 
   //** 将配置的检测范围主动下发到雷达 (修复 max_range/min_range 不生效) **//
   if (max_range_number_ != nullptr || min_range_number_ != nullptr) {
@@ -1065,6 +1082,8 @@ bool C4002Component::set_min_range(float range) {
     return false;
   } else {
     this->min_detect_range_ = range;
+    pref_min_range_.save(&range);
+    ESP_LOGD(TAG, "Saved min_range to NVS: %.2f", range);
     return true;
   }
 }
@@ -1076,6 +1095,8 @@ bool C4002Component::set_max_range(float range) {
     return false;
   } else {
     this->max_detect_range_ = range;
+    pref_max_range_.save(&range);
+    ESP_LOGD(TAG, "Saved max_range to NVS: %.2f", range);
     return true;
   }
 }

@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 #include <string>
 #include <stdint.h>
 
@@ -405,6 +406,10 @@ class C4002Component : public Component, public uart::UARTDevice {
 #endif
 
   std::vector<C4002Listener *> listeners_{};
+
+  // NVS 持久化：保存 max_range / min_range，重启不丢失
+  ESPPreferenceObject pref_min_range_{};
+  ESPPreferenceObject pref_max_range_{};
 };
 
 }  // namespace dfrobot_c4002
