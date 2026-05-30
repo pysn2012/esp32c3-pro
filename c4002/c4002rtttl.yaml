@@ -158,6 +158,11 @@ globals:
     restore_value: no
     initial_value: '0'        # 状态变化时刻的 millis() 时间戳
 
+  - id: no_body_consecutive
+    type: int
+    restore_value: no
+    initial_value: '0'        # 连续检测到"无目标"的采样次数（每 100ms 一帧）
+
 # 字体配置
 font:
   - file:
@@ -233,11 +238,30 @@ script:
             return;
           }
 
-          // 如果原始状态与已确认状态一致，重置待处理状态
+          // 如果原始状态与已确认状态一致，重置一切
           if (raw_status == id(confirmed_status)) {
             id(pending_status) = raw_status;
             id(status_change_timer) = 0;
+            id(no_body_consecutive) = 0;
             return;
+          }
+
+          // ⭐ 交叉验证：雷达报无目标，但距离传感器显示有人在范围内
+          // 毫米波雷达检测静止人体存在天然不稳定性，用距离数据否决误报
+          if (raw_status == 0 && id(confirmed_status) != 0) {
+            float exist_dist = id(existing_distance_sensor).state;
+            float move_dist = id(movement_distance_sensor).state;
+
+            if ((!isnan(exist_dist) && exist_dist > 0.2f && exist_dist < 6.0f) ||
+                (!isnan(move_dist) && move_dist > 0.2f && move_dist < 6.0f)) {
+              // 距离传感器否定雷达的 NO_BODY 判断，重置计时器
+              id(no_body_consecutive) = 0;
+              id(pending_status) = id(confirmed_status);
+              id(status_change_timer) = 0;
+              float dist = !isnan(exist_dist) ? exist_dist : move_dist;
+              ESP_LOGW("debounce", "雷达报无目标但距离=%.1fm，忽略误报", dist);
+              return;
+            }
           }
 
           unsigned long now = millis();
@@ -246,29 +270,43 @@ script:
           if (raw_status != id(pending_status)) {
             id(pending_status) = raw_status;
             id(status_change_timer) = now;
+            id(no_body_consecutive) = (raw_status == 0) ? 1 : 0;
             ESP_LOGD("debounce", "状态变化检测: %d -> %d, 开始计时",
                      id(confirmed_status), raw_status);
           }
-          // 待确认状态持续中，检查是否达到防抖时间
+          // 待确认状态持续中，递增连续计数并检查时间
           else {
-            unsigned long elapsed = now - (unsigned long)id(status_change_timer);
-            unsigned long debounce_time;
-
-            // 人来防抖 1.5s（避免快速误触发）
-            // 人走防抖 3.0s（避免短暂消失误报，如静坐微动）
             if (raw_status == 0) {
-              debounce_time = 3000;
-            } else {
-              debounce_time = 1500;
+              id(no_body_consecutive)++;
             }
 
-            if (elapsed >= debounce_time) {
+            unsigned long elapsed = now - (unsigned long)id(status_change_timer);
+            unsigned long debounce_time;
+            int required_consecutive;
+
+            // 人来防抖 1.5s（避免快速误触发）
+            // 人走防抖 8s + 需连续 60 帧确认（防止雷达短暂丢目标导致误报）
+            if (raw_status == 0) {
+              debounce_time = 8000;
+              required_consecutive = 60;
+            } else {
+              debounce_time = 1500;
+              required_consecutive = 0;
+            }
+
+            // 双重确认：时间达到 + (人走时) 连续帧数达到
+            bool time_ok = (elapsed >= debounce_time);
+            bool consecutive_ok = (raw_status != 0) || (id(no_body_consecutive) >= required_consecutive);
+
+            if (time_ok && consecutive_ok) {
               int old_status = id(confirmed_status);
+              int consecutive_count = id(no_body_consecutive);
               id(confirmed_status) = raw_status;
               id(status_change_timer) = 0;
+              id(no_body_consecutive) = 0;
 
-              ESP_LOGI("debounce", "✅ 状态确认: %d -> %d (耗时 %lu ms)",
-                       old_status, raw_status, elapsed);
+              ESP_LOGI("debounce", "状态确认: %d -> %d (耗时 %lu ms, 连续 %d 帧)",
+                       old_status, raw_status, elapsed, consecutive_count);
 
               // 触发对应播报
               if (raw_status != 0) {

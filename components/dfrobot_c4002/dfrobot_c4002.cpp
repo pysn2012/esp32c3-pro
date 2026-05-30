@@ -100,6 +100,22 @@ void C4002Component::update_config_param() {
 
   setup_number();
 
+  //** 将配置的检测范围主动下发到雷达 (修复 max_range/min_range 不生效) **//
+  if (max_range_number_ != nullptr || min_range_number_ != nullptr) {
+    uint16_t closest = (uint16_t) (min_detect_range_ * 100);
+    uint16_t farthest = (uint16_t) (max_detect_range_ * 100);
+    if (farthest < closest) {
+      std::swap(closest, farthest);
+    }
+    if (set_detect_range(closest, farthest)) {
+      ESP_LOGD(TAG, "Applied detect range: %.2f - %.2f m", min_detect_range_, max_detect_range_);
+      // 重新读取实际生效值（雷达可能做了钳位）
+      get_detect_range();
+    } else {
+      ESP_LOGW(TAG, "Failed to apply detect range");
+    }
+  }
+
   //** read config param **//
   float current_light_threshold = get_light_threshold();
   float current_delay_time = get_target_disappear_delay();

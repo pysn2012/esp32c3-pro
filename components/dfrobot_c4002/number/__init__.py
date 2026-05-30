@@ -121,11 +121,13 @@ async def to_code(config):
         n = await number.new_number(min_config, min_value=0, max_value=11.0, step=0.1)
         await cg.register_parented(n, config[CONF_C4002_ID])
         cg.add(number_component.set_min_range_number(n))
+        cg.add(n.set_restore_value(True))
     # 最大探测距离
     if max_config := config.get(CONF_MAX_RANGE):
         n = await number.new_number(max_config, min_value=0.8, max_value=11.0, step=0.1)
         await cg.register_parented(n, config[CONF_C4002_ID])
         cg.add(number_component.set_max_range_number(n))
+        cg.add(n.set_restore_value(True))
     # 光照阈值
     if light_threshold_config := config.get(CONF_LIGHT_THRESHOLD_1):
         light_threshold = await number.new_number(
