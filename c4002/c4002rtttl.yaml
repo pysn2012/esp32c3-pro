@@ -2,7 +2,7 @@
 substitutions:
   device_name: c4002
   friendly_name: c4002
-  allowed_characters: "状态：距离无目标静止存在运动中未知.0123456789mM()"
+  allowed_characters: "状态：距离无目标静止存在运动中未知.0123456789mM(-)"
 
 # ESPHome 核心配置
 esphome:
@@ -62,13 +62,11 @@ sensor:
       name: "3.运动速度"          # 目标移动速度
       id: movement_speed_sensor
     movement_direction:
-      name: "4.运动方向"
+      name: "Movement Direction"
       id: movement_direction_sensor  # 运动方向
-      internal: true
     target_status:
-      name: "5.目标状态"          # 当前目标状态（内部使用，不在前端显示）
+      name: "Target Status"          # 当前目标状态（内部使用，不在前端显示）
       id: target_status_sensor
-      internal: true
     light:
       name: "0.光照强度"           # 雷达内置光照传感器
       id: light_sensor
@@ -77,7 +75,7 @@ sensor:
 text_sensor:
   # 运动方向文本传感器（将数值转为中文描述）
   - platform: template
-    name: "6.运动方向(文本)"
+    name: "4.运动方向(文本)"
     id: movement_direction_text
     icon: "mdi:directions"
     lambda: |-
@@ -90,7 +88,7 @@ text_sensor:
 
   # 目标状态文本传感器（将数值转为中文描述）
   - platform: template
-    name: "7.目标状态(文本)"
+    name: "5.目标状态(文本)"
     id: target_status_text
     icon: "mdi:human-greeting"
     lambda: |-
@@ -156,7 +154,7 @@ globals:
   - id: light_threshold_lux
     type: float
     restore_value: yes
-    initial_value: '5.0'      # 光照低于此值(lx)认为是晚上，需要补光
+    initial_value: '25.0'      # 光照低于此值(lx)认为是晚上，需要补光
 
 # 字体配置
 font:
@@ -247,9 +245,9 @@ rtttl:
   id: rtttl_player
   speaker: box_speaker
 
-# 脚本：音乐播报 + 补光灯控制
+# 脚本：音乐播报 + LED灯控制
 script:
-  # --- 有人来了 ---
+  # 有人来了
   - id: on_arrive
     mode: single
     then:
@@ -271,7 +269,7 @@ script:
                 format: "光线充足，无需补光"
                 tag: "c4002"
 
-  # --- 有人走了 ---
+  # 人离开
   - id: on_leave
     mode: single
     then:
@@ -286,7 +284,7 @@ script:
                 format: "人已离开，关闭补光灯"
                 tag: "c4002"
 
-  # --- 状态变化检测（轻量，无延时）---
+  # 状态变化检测
   - id: status_monitor
     mode: single
     then:

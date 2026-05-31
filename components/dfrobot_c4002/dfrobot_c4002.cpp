@@ -14,7 +14,7 @@ static const char *const TAG = "dfrobot_c4002: ";
  */
 void C4002Component::setup() {
   update_config_param();
-  this->publish_text("The initialization of c4002 was successful!");
+  this->publish_text("C4002 初始化成功！");
 }
 
 /**
@@ -41,7 +41,7 @@ void C4002Component::loop() {
     ESP_LOGD(TAG, "********Calibration countdown: %2d s**********", ret.calibCountdown);
     if (ret.calibCountdown == 0) {
       ESP_LOGD(TAG, "Calibration complete!");
-      this->publish_text("Calibration complete!");
+      this->publish_text("校准完成！");
       analysis_text_report();
     }
   }
@@ -53,8 +53,8 @@ void C4002Component::loop() {
 
   if (reset_flag_ == 1) {
     reset_flag_ = 0;
-    restart();
-    this->publish_text("Reset the device to factory complete!");
+    restart();calibratio
+    this->publish_text("恢复出厂设置完成！");
   }
 }
 
@@ -594,7 +594,7 @@ void C4002Component::analysis_text_report() {
   }
 
   if (flag == 0) {
-    this->publish_text("The calibration threshold is effective!");
+    this->publish_text("校准阈值已生效！");
     return;
   }
 
@@ -602,7 +602,7 @@ void C4002Component::analysis_text_report() {
   int offset = 0;
 
   offset += snprintf(data_str + offset, sizeof(data_str) - offset,
-                     "Calibration failed:Interference is detected at a distance of ");
+                     "校准失败:检测到干扰在 ");
 
   for (size_t i = 0; i < over_indices.size(); i++) {
     uint8_t idx = over_indices[i];
@@ -612,7 +612,7 @@ void C4002Component::analysis_text_report() {
   }
 
   snprintf(data_str + offset, sizeof(data_str) - offset,
-           " m, Please clear all interference sources within this range and recalibrate.");
+           " m, 请清除该范围内的所有干扰源并重新校准。");
 
   this->publish_text(data_str);
 }
