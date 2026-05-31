@@ -53,7 +53,7 @@ void C4002Component::loop() {
 
   if (reset_flag_ == 1) {
     reset_flag_ = 0;
-    restart();calibratio
+    restart();
     this->publish_text("恢复出厂设置完成！");
   }
 }
