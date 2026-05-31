@@ -2,7 +2,7 @@
 substitutions:
   device_name: c4002
   friendly_name: c4002
-  allowed_characters: "状态：距离无目标静止存在运动中未知.0123456789m"
+  allowed_characters: "状态：距离无目标静止存在运动中未知.0123456789mM()"
 
 # ESPHome 核心配置
 esphome:
@@ -69,6 +69,10 @@ sensor:
       name: "5.目标状态"          # 当前目标状态（内部使用，不在前端显示）
       id: target_status_sensor
       internal: true
+    light:
+      name: "0.光照强度"           # 雷达内置光照传感器
+      id: light_sensor
+      accuracy_decimals: 1
 
 text_sensor:
   # 运动方向文本传感器（将数值转为中文描述）
@@ -90,7 +94,8 @@ text_sensor:
     id: target_status_text
     icon: "mdi:human-greeting"
     lambda: |-
-      int d = id(confirmed_status);
+      int d = id(target_status_sensor).state;
+      if (isnan(d)) return {"未知"};
       if (d == 0) return {"无目标"};
       else if (d == 1) return {"静止存在"};
       else if (d == 2) return {"运动中"};
@@ -141,27 +146,17 @@ number:
     target_disappeard_delay_time:
       name: "Target Disappear Delay Time"  # 目标离开后保持"存在"状态的延迟时长
 
-# 全局变量：防抖状态机
+# 全局变量
 globals:
-  - id: confirmed_status
+  - id: prev_raw_status
     type: int
     restore_value: no
-    initial_value: '0'        # 0=无目标, 1=静止, 2=运动
+    initial_value: '-1'       # -1=未初始化, 0=无目标, 1=静止, 2=运动
 
-  - id: pending_status
-    type: int
-    restore_value: no
-    initial_value: '0'        # 待确认的新状态
-
-  - id: status_change_timer
-    type: int
-    restore_value: no
-    initial_value: '0'        # 状态变化时刻的 millis() 时间戳
-
-  - id: no_body_consecutive
-    type: int
-    restore_value: no
-    initial_value: '0'        # 连续检测到"无目标"的采样次数（每 100ms 一帧）
+  - id: light_threshold_lux
+    type: float
+    restore_value: yes
+    initial_value: '5.0'      # 光照低于此值(lx)认为是晚上，需要补光
 
 # 字体配置
 font:
@@ -174,6 +169,18 @@ font:
     size: 12                        # 字号：12
     glyphs: ${allowed_characters}   # 只加载指定字符
     ignore_missing_glyphs: true     # 忽略字体中缺失的字符，不报错
+
+# LED 补光灯 (GPIO7)
+output:
+  - platform: gpio
+    pin: GPIO7
+    id: led_output
+
+light:
+  - platform: binary
+    output: led_output
+    name: "LED灯"
+    id: led_light
 
 # I2C 总线
 i2c:
@@ -194,9 +201,25 @@ display:
       it.fill(COLOR_OFF);
       // 第一行：目标状态
       it.printf(10, 10, id(cn_font), "状态：%s", id(target_status_text).state.c_str());
-      // 第二行：存在距离
-      if (!isnan(id(existing_distance_sensor).state)) {
-        it.printf(10, 42, id(cn_font), "距离：%.1fm", id(existing_distance_sensor).state);
+      // 第二行：根据状态显示对应距离
+      //   运动中 → 显示运动距离（existTargetDist 会滞后）
+      //   静止中 → 显示存在距离
+      //   无目标 → 显示 --
+      int status = id(target_status_sensor).state;
+      if (status == 2) {
+        // 运动中：显示运动距离
+        if (!isnan(id(movement_distance_sensor).state)) {
+          it.printf(10, 42, id(cn_font), "距离：%.1fm(M)", id(movement_distance_sensor).state);
+        } else {
+          it.printf(10, 42, id(cn_font), "距离：--(M)");
+        }
+      } else if (status == 1) {
+        // 静止存在：显示存在距离
+        if (!isnan(id(existing_distance_sensor).state)) {
+          it.printf(10, 42, id(cn_font), "距离：%.1fm", id(existing_distance_sensor).state);
+        } else {
+          it.printf(10, 42, id(cn_font), "距离：--");
+        }
       } else {
         it.printf(10, 42, id(cn_font), "距离：--");
       }
@@ -223,122 +246,78 @@ speaker:
 rtttl:
   id: rtttl_player
   speaker: box_speaker
-        
-# 自定义脚本：防抖处理 + 播报
+
+# 脚本：音乐播报 + 补光灯控制
 script:
-  # --- 核心防抖脚本（每 100ms 由 interval 调用）---
-  - id: debounce_handler
+  # --- 有人来了 ---
+  - id: on_arrive
+    mode: single
+    then:
+      - rtttl.play:
+          rtttl: "come:d=16,o=5,b=240:16c6,16e6,16g6,8c7"
+      - if:
+          condition:
+            lambda: |-
+              float lux = id(light_sensor).state;
+              float threshold = id(light_threshold_lux);
+              return !isnan(lux) && lux < threshold;
+          then:
+            - light.turn_on: led_light
+            - logger.log:
+                format: "光线暗，开启补光灯"
+                tag: "c4002"
+          else:
+            - logger.log:
+                format: "光线充足，无需补光"
+                tag: "c4002"
+
+  # --- 有人走了 ---
+  - id: on_leave
+    mode: single
+    then:
+      - rtttl.play:
+          rtttl: "leave:d=16,o=5,b=240:16c7,16g6,16e6,8c6"
+      - if:
+          condition:
+            light.is_on: led_light
+          then:
+            - light.turn_off: led_light
+            - logger.log:
+                format: "人已离开，关闭补光灯"
+                tag: "c4002"
+
+  # --- 状态变化检测（轻量，无延时）---
+  - id: status_monitor
     mode: single
     then:
       - lambda: |-
-          int raw_status = id(target_status_sensor).state;
+          int raw = id(target_status_sensor).state;
+          if (isnan(raw)) return;
 
-          // 忽略无效值（初始化时可能为 NaN）
-          if (isnan(raw_status)) {
-            return;
+          int prev = id(prev_raw_status);
+
+          // 状态没变，跳过
+          if (prev == raw) return;
+
+          // 记录新状态
+          id(prev_raw_status) = raw;
+
+          // 刚启动时 prev<0，不触发
+          if (prev < 0) return;
+
+          // 无人(0) → 有人(1/2)
+          if (prev == 0 && raw != 0) {
+            ESP_LOGI("c4002", "检测到有人进入 (状态: %d)", raw);
+            id(on_arrive).execute();
+          }
+          // 有人(1/2) → 无人(0)
+          else if (prev != 0 && raw == 0) {
+            ESP_LOGI("c4002", "检测到人已离开");
+            id(on_leave).execute();
           }
 
-          // 如果原始状态与已确认状态一致，重置一切
-          if (raw_status == id(confirmed_status)) {
-            id(pending_status) = raw_status;
-            id(status_change_timer) = 0;
-            id(no_body_consecutive) = 0;
-            return;
-          }
-
-          // ⭐ 交叉验证：雷达报无目标，但距离传感器显示有人在范围内
-          // 毫米波雷达检测静止人体存在天然不稳定性，用距离数据否决误报
-          if (raw_status == 0 && id(confirmed_status) != 0) {
-            float exist_dist = id(existing_distance_sensor).state;
-            float move_dist = id(movement_distance_sensor).state;
-
-            if ((!isnan(exist_dist) && exist_dist > 0.2f && exist_dist < 6.0f) ||
-                (!isnan(move_dist) && move_dist > 0.2f && move_dist < 6.0f)) {
-              // 距离传感器否定雷达的 NO_BODY 判断，重置计时器
-              id(no_body_consecutive) = 0;
-              id(pending_status) = id(confirmed_status);
-              id(status_change_timer) = 0;
-              float dist = !isnan(exist_dist) ? exist_dist : move_dist;
-              ESP_LOGW("debounce", "雷达报无目标但距离=%.1fm，忽略误报", dist);
-              return;
-            }
-          }
-
-          unsigned long now = millis();
-
-          // 检测到新状态，开始计时
-          if (raw_status != id(pending_status)) {
-            id(pending_status) = raw_status;
-            id(status_change_timer) = now;
-            id(no_body_consecutive) = (raw_status == 0) ? 1 : 0;
-            ESP_LOGD("debounce", "状态变化检测: %d -> %d, 开始计时",
-                     id(confirmed_status), raw_status);
-          }
-          // 待确认状态持续中，递增连续计数并检查时间
-          else {
-            if (raw_status == 0) {
-              id(no_body_consecutive)++;
-            }
-
-            unsigned long elapsed = now - (unsigned long)id(status_change_timer);
-            unsigned long debounce_time;
-            int required_consecutive;
-
-            // 人来防抖 1.5s（避免快速误触发）
-            // 人走防抖 3s + 需连续 30 帧确认（防止雷达短暂丢目标导致误报）
-            if (raw_status == 0) {
-              debounce_time = 3000;
-              required_consecutive = 30;
-            } else {
-              debounce_time = 1500;
-              required_consecutive = 0;
-            }
-
-            // 双重确认：时间达到 + (人走时) 连续帧数达到
-            bool time_ok = (elapsed >= debounce_time);
-            bool consecutive_ok = (raw_status != 0) || (id(no_body_consecutive) >= required_consecutive);
-
-            if (time_ok && consecutive_ok) {
-              int old_status = id(confirmed_status);
-              int consecutive_count = id(no_body_consecutive);
-              id(confirmed_status) = raw_status;
-              id(status_change_timer) = 0;
-              id(no_body_consecutive) = 0;
-
-              ESP_LOGI("debounce", "状态确认: %d -> %d (耗时 %lu ms, 连续 %d 帧)",
-                       old_status, raw_status, elapsed, consecutive_count);
-
-              // 触发对应播报
-              if (raw_status != 0) {
-                id(play_arrived_sound).execute();
-              } else {
-                id(play_left_sound).execute();
-              }
-            }
-          }
-
-  # --- 播报：有人来了（上行提示音，明亮短促）---
-  - id: play_arrived_sound
-    mode: single
-    then:
-      - logger.log:
-          format: "🔔 播报：有人来了"
-          tag: "c4002"
-      - rtttl.play:
-          rtttl: "come:d=16,o=5,b=240:16c6,16e6,16g6,8c7"
-
-  # --- 播报：有人离开了（下行提示音，低沉短促）---
-  - id: play_left_sound
-    mode: single
-    then:
-      - logger.log:
-          format: "🔔 播报：有人离开了"
-          tag: "c4002"
-      - rtttl.play:
-          rtttl: "leave:d=16,o=5,b=240:16c7,16g6,16e6,8c6"
-
-# 定时器：每 100ms 执行一次防抖检查
+# 定时器：每 200ms 检测一次状态变化
 interval:
-  - interval: 100ms
+  - interval: 200ms
     then:
-      - script.execute: debounce_handler
+      - script.execute: status_monitor

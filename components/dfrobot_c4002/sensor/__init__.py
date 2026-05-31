@@ -4,8 +4,10 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_DISTANCE,
+    DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_SPEED,
     ICON_RULER,
+    UNIT_LUX,
     UNIT_METER,
 )
 
@@ -18,6 +20,7 @@ CONF_EXISTING_DISTANCE = "existing_distance"
 CONF_MOVEMENT_SPEED = "movement_speed"
 CONF_MOVEMENT_DIRECTION = "movement_direction"
 CONF_TARGET_STATUS = "target_status"
+CONF_LIGHT = "light"
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -48,6 +51,12 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_TARGET_STATUS): sensor.sensor_schema(
             icon="mdi:target",
+        ),
+        cv.Optional(CONF_LIGHT): sensor.sensor_schema(
+            device_class=DEVICE_CLASS_ILLUMINANCE,
+            unit_of_measurement=UNIT_LUX,
+            icon="mdi:brightness-6",
+            accuracy_decimals=1,
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -86,6 +95,12 @@ async def to_code(config):
         sens_conf = config[CONF_TARGET_STATUS]
         sens = await sensor.new_sensor(sens_conf)
         cg.add(c4002_sensor.set_target_status_sensor(sens))
+
+    # 光照传感器
+    if CONF_LIGHT in config:
+        sens_conf = config[CONF_LIGHT]
+        sens = await sensor.new_sensor(sens_conf)
+        cg.add(c4002_sensor.set_light_sensor(sens))
 
     c4002_component = await cg.get_variable(config[CONF_C4002_ID])
     cg.add(c4002_component.register_listener(c4002_sensor))

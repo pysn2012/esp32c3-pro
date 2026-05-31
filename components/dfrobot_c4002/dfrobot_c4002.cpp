@@ -78,6 +78,7 @@ void C4002Component::get_data() {
       listener->on_movement_direction(static_cast<float>(move_taget_data.direction));
       listener->on_existing_distance(exit_taget_data.distance);
       listener->on_target_status((uint8_t) target_state);
+      listener->on_light(get_light());
     }
   }
 }

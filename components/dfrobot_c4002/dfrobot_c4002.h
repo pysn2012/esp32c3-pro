@@ -34,6 +34,7 @@ class C4002Listener {
   virtual void on_movement_direction(float direction){};
   virtual void on_existing_distance(float distance){};
   virtual void on_target_status(uint8_t state){};
+  virtual void on_light(float light){};
 };
 
 static const uint8_t TIME_OUT = 0x64;  ///< time out
