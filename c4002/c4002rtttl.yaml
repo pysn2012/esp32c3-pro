@@ -115,9 +115,9 @@ switch:
     switch_run_led:
       name: "Run LED开关"   # 控制 RUN 运行指示灯
     switch_factory_reset:
-      name: "8.恢复出厂设置"    # 触发雷达恢复出厂设置
+      name: "6.恢复出厂设置"    # 触发雷达恢复出厂设置
     switch_environmental_calibration:
-      name: "9.传感器校准"  # 触发雷达环境自适应校准
+      name: "7.传感器校准"  # 触发雷达环境自适应校准
 
 # Select 配置部分
 select:
@@ -136,13 +136,13 @@ number:
   - platform: dfrobot_c4002
     c4002_id: my_c4002
     max_range:
-      name: "11.最大探测距离"   # 雷达最大探测范围设置
+      name: "8.最大探测距离"   # 雷达最大探测范围设置
     min_range:
-      name: "12.最小探测距离"   # 雷达最小探测范围设置（盲区）
+      name: "9.最小探测距离"   # 雷达最小探测范围设置（盲区）
     light_threshold:
-      name: "13.光敏触发阈值"          # 光敏触发阈值（需硬件支持光敏）
+      name: "Light Threshold"          # 光敏触发阈值（需硬件支持光敏）
     target_disappeard_delay_time:
-      name: "Target Disappear Delay Time"  # 目标离开后保持"存在"状态的延迟时长
+      name: "10.离开延迟"  # 目标离开后保持"存在"状态的延迟时长
 
 # 全局变量
 globals:
